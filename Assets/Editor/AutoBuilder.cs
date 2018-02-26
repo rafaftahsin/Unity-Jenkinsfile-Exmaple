@@ -1,8 +1,11 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEditor;
 using System;
 using System.IO;
 using Newtonsoft.Json;
+using UnityEditor.Callbacks;
+using System.Collections;
+using UnityEditor.iOS.Xcode;
 
 public static class AutoBuilder
 {
@@ -38,8 +41,7 @@ public static class AutoBuilder
         PlayerSettings.bundleVersion = build_version;
 
         EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTarget.Android);
-        BuildPipeline.BuildPlayer(GetScenePaths(), "Builds/android/ApplicationName-" + build_version + ".apk", BuildTarget.Android, BuildOptions.None);
-    }
+        BuildPipeline.BuildPlayer(GetScenePaths(), "Builds/android/MyMindfulBuddy-" + build_version + ".apk", BuildTarget.Android, BuildOptions.None);
 
 	[MenuItem ("File/AutoBuilder/iOS")]
 	static void PerformiOSBuild ()
@@ -59,3 +61,38 @@ public class BuildConfig
     public string BuildVersion { get; set; }
 }
 
+
+public class iOSBuild  {
+
+	[PostProcessBuild]
+	public static void ConfigureXCodeProject(BuildTarget buildTarget, string pathToBuiltProject)
+	{
+		if ( buildTarget == BuildTarget.iOS )
+		{
+
+			string plistPath = pathToBuiltProject + "/Info.plist";
+			PlistDocument plist = new PlistDocument();
+			plist.ReadFromString(File.ReadAllText(plistPath));
+
+
+			PlistElementDict rootDict = plist.root;
+			rootDict.SetString("NSSpeechRecognitionUsageDescription","Cognitive Agent use Speech to analyze voice");
+			rootDict.SetString("NSMicrophoneUsageDescription","Cognitive Agent use Microphone to get user voice");
+			File.WriteAllText(plistPath, plist.WriteToString());
+
+			string projectPath = PBXProject.GetPBXProjectPath(pathToBuiltProject);
+			PBXProject project = new PBXProject();
+			project.ReadFromString(File.ReadAllText(projectPath));
+			string targetName = PBXProject.GetUnityTargetName();
+			string targetGUID = project.TargetGuidByName(targetName);
+			AddFrameworks(project, targetGUID);
+			File.WriteAllText(projectPath, project.WriteToString());
+		}
+	}
+
+
+	static void AddFrameworks(PBXProject project, string targetGUID)
+	{
+		project.AddFrameworkToProject(targetGUID, "Speech.framework", false);
+	}
+}
